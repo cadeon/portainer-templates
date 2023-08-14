@@ -1,0 +1,70 @@
+---
+version: '3'
+
+services:
+
+  mybunker:
+    image: bunkerity/bunkerweb:1.4.3
+    ports:
+      - ${HTTP_PORT}:8080
+      - ${HTTPS_PORT}:8443
+    volumes:
+      - bw_data:/data
+      - bw_config:/etc/nginx
+    environment:
+      - SERVER_NAME=${UI_DOMAIN}
+      - MULTISITE=yes
+      #- AUTO_LETS_ENCRYPT=yes
+      #- DISABLE_DEFAULT_SERVER=yes
+      #- USE_CLIENT_CACHE=yes
+      #- USE_GZIP=yes
+      - API_WHITELIST_IP=127.0.0.0/8 10.20.30.0/24
+      - ${UI_DOMAIN}_USE_UI=yes
+      - ${UI_DOMAIN}_USE_REVERSE_PROXY=yes
+      - ${UI_DOMAIN}_REVERSE_PROXY_URL=/admin
+      - ${UI_DOMAIN}_REVERSE_PROXY_HOST=http://myui:7000
+      - ${UI_DOMAIN}_REVERSE_PROXY_HEADERS=X-Script-Name /admin
+      - ${UI_DOMAIN}_REVERSE_PROXY_INTERCEPT_ERRORS=no
+    labels:
+      - "bunkerweb.UI"
+    networks:
+      - net_ui
+      - net_svc
+
+  myui:
+    image: bunkerity/bunkerweb-ui:1.4.3
+    depends_on:
+      - myuiproxy
+    volumes:
+      - bw_data:/data
+      - bw_config:/etc/nginx
+    environment:
+      - ABSOLUTE_URI=http(s)://${UI_DOMAIN}/admin/
+      - DOCKER_HOST=tcp://myuiproxy:2375
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    networks:
+      - net_ui
+      - net_docker
+
+  mydocker:
+    image: tecnativa/docker-socket-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1
+    networks:
+      - net_docker
+
+volumes:
+  bw_data:
+  bw_config:
+
+networks:
+  net_ui:
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.20.30.0/24
+  net_docker:
+  net_svc:
